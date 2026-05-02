@@ -536,8 +536,13 @@ function flushPendingRender() {
 
 function updateSplit() {
   const value = Number(els.splitRange.value);
+  const splitRect = els.splitView.getBoundingClientRect();
+  const canvasRect = els.appliedCanvas.getBoundingClientRect();
+  const canvasLeft = canvasRect.width ? canvasRect.left - splitRect.left : 0;
+  const canvasWidth = canvasRect.width || splitRect.width;
+  const handleLeft = canvasLeft + (canvasWidth * value) / 100;
   els.appliedCanvas.style.clipPath = `inset(0 0 0 ${value}%)`;
-  els.splitHandle.style.left = `${value}%`;
+  els.splitHandle.style.left = `${handleLeft}px`;
 }
 
 function updateViewMode() {
@@ -546,8 +551,12 @@ function updateViewMode() {
   els.sideView.classList.toggle("hidden", mode !== "side");
   els.splitRange.closest(".control-group").classList.toggle("hidden", mode !== "split");
   els.baseCanvas.classList.toggle("hidden", mode === "applied");
-  els.appliedCanvas.style.clipPath = mode === "applied" ? "none" : `inset(0 0 0 ${els.splitRange.value}%)`;
   els.splitHandle.classList.toggle("hidden", mode !== "split");
+  if (mode === "applied") {
+    els.appliedCanvas.style.clipPath = "none";
+  } else {
+    updateSplit();
+  }
 }
 
 async function loadImageFile(file) {
@@ -1148,7 +1157,8 @@ els.tabButtons.forEach((button) => {
 
 function setSplitFromPointer(event) {
   if (els.viewMode.value !== "split") return;
-  const rect = els.splitView.getBoundingClientRect();
+  const rect = els.appliedCanvas.getBoundingClientRect();
+  if (!rect.width) return;
   const value = Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100));
   els.splitRange.value = String(Math.round(value));
   updateSplit();
@@ -1177,6 +1187,7 @@ els.splitView.addEventListener("pointerdown", startSplitDrag);
 els.splitView.addEventListener("pointermove", moveSplitDrag);
 els.splitView.addEventListener("pointerup", endSplitDrag);
 els.splitView.addEventListener("pointercancel", endSplitDrag);
+window.addEventListener("resize", updateSplit);
 
 document.addEventListener("paste", async (event) => {
   const items = [...(event.clipboardData?.items || [])];
