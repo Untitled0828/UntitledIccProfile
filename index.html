@@ -11,36 +11,36 @@
       <aside class="panel">
         <div class="brand">
           <h1>Untitled  ICC Live Editor</h1>
-          <p>Preview and tune VCGT curves in real time.</p>
+          <p data-i18n="tagline">Preview and tune VCGT curves in real time.</p>
         </div>
 
         <nav class="tabs" aria-label="Editor sections">
-          <button class="tab-button active" type="button" data-tab="curve">Curve</button>
-          <button class="tab-button" type="button" data-tab="files">Files</button>
+          <button class="tab-button active" type="button" data-tab="curve" data-i18n="tabCurve">Curve</button>
+          <button class="tab-button" type="button" data-tab="files" data-i18n="tabFiles">Files</button>
         </nav>
 
         <section id="tab-curve" class="tab-panel active">
           <section class="editor-card compact-card">
             <div class="editor-head">
-              <h2>Live Curve</h2>
+              <h2 data-i18n="liveCurve">Live Curve</h2>
               <div class="editor-actions">
-                <button id="linearCurveButton" type="button">Linear</button>
-                <button id="resetCurveButton" type="button">Profile</button>
+                <button id="linearCurveButton" type="button" data-i18n="linear">Linear</button>
+                <button id="resetCurveButton" type="button" data-i18n="profileReset">Profile</button>
               </div>
             </div>
-            <p class="hint">0% and 100% are fixed to keep black and white points stable.</p>
-            <label for="curveChannel">Channel</label>
+            <p class="hint" data-i18n="curveHint">0% and 100% are fixed to keep black and white points stable.</p>
+            <label for="curveChannel" data-i18n="channel">Channel</label>
             <select id="curveChannel">
-              <option value="all">RGB linked</option>
-              <option value="0">Red</option>
-              <option value="1">Green</option>
-              <option value="2">Blue</option>
+              <option value="all" data-i18n="rgbLinked">RGB linked</option>
+              <option value="0" data-i18n="red">Red</option>
+              <option value="1" data-i18n="green">Green</option>
+              <option value="2" data-i18n="blue">Blue</option>
             </select>
-            <label for="curveDetail">Detail</label>
+            <label for="curveDetail" data-i18n="detail">Detail</label>
             <select id="curveDetail">
-              <option value="standard">Standard</option>
-              <option value="fine">Fine</option>
-              <option value="ultra">Ultra</option>
+              <option value="standard" data-i18n="standard">Standard</option>
+              <option value="fine" data-i18n="fine">Fine</option>
+              <option value="ultra" data-i18n="ultra">Ultra</option>
             </select>
             <div class="curve-canvas-wrap">
               <canvas id="curveCanvas" width="280" height="150"></canvas>
@@ -50,60 +50,60 @@
           </section>
 
           <section class="control-group compact-card">
-            <label for="viewMode">View</label>
+            <label for="viewMode" data-i18n="view">View</label>
             <select id="viewMode">
-              <option value="split">Slider compare</option>
-              <option value="side">Side by side</option>
-              <option value="applied">Applied only</option>
+              <option value="split" data-i18n="sliderCompare">Slider compare</option>
+              <option value="side" data-i18n="sideBySide">Side by side</option>
+              <option value="applied" data-i18n="appliedOnly">Applied only</option>
             </select>
           </section>
 
           <section class="control-group split-control compact-card">
-            <label for="splitRange">Compare position</label>
+            <label for="splitRange" data-i18n="comparePosition">Compare position</label>
             <input id="splitRange" type="range" min="0" max="100" value="50">
           </section>
         </section>
 
         <section id="tab-files" class="tab-panel">
           <section class="control-group compact-card">
-            <label for="imageInput">Image</label>
+            <label for="imageInput" data-i18n="image">Image</label>
             <input id="imageInput" type="file" accept="image/*">
-            <button id="sampleButton" type="button">Use sample pattern</button>
-            <p id="pasteStatus" class="hint">Copy an image, then press Ctrl+V on this page.</p>
+            <button id="sampleButton" type="button" data-i18n="useSample">Use sample pattern</button>
+            <p id="pasteStatus" class="hint" data-i18n="pasteHint">Copy an image, then press Ctrl+V on this page.</p>
           </section>
 
           <section class="control-group compact-card">
-            <label for="profileSelect">Profile</label>
+            <label for="profileSelect" data-i18n="profile">Profile</label>
             <select id="profileSelect"></select>
             <input id="profileInput" type="file" accept=".icc,.icm,application/vnd.iccprofile">
-            <p id="profileStatus" class="hint">Loading ICC profiles from this folder...</p>
+            <p id="profileStatus" class="hint" data-i18n="loadingProfiles">Loading ICC profiles from this folder...</p>
           </section>
 
           <section class="editor-card compact-card">
-            <h2>Save ICC</h2>
-            <label for="saveProfileName">Saved profile name</label>
-            <input id="saveProfileName" type="text" maxlength="24" placeholder="ICC Live Custom">
-            <p class="hint">Saved ICC files will include the Untitled0828 signature.</p>
-            <button id="exportIccButton" type="button">Save edited ICC</button>
+            <h2 data-i18n="saveIcc">Save ICC</h2>
+            <label for="saveProfileName" data-i18n="savedProfileName">Saved profile name</label>
+            <input id="saveProfileName" type="text" maxlength="24" placeholder="ICC Live Custom" data-i18n-placeholder="iccLiveCustom">
+            <p class="hint" data-i18n="saveIccHint">Saved ICC files will include the Untitled0828 signature.</p>
+            <button id="exportIccButton" type="button" data-i18n="saveEditedIcc">Save edited ICC</button>
           </section>
 
           <section class="profile-card compact-card">
-            <h2 id="profileName">No profile</h2>
+            <h2 id="profileName" data-i18n="noProfile">No profile</h2>
             <dl>
               <div>
-                <dt>Loaded signature</dt>
+                <dt data-i18n="loadedSignature">Loaded signature</dt>
                 <dd id="profileSignature">-</dd>
               </div>
               <div>
-                <dt>Channels</dt>
+                <dt data-i18n="channels">Channels</dt>
                 <dd id="profileChannels">-</dd>
               </div>
               <div>
-                <dt>Entries</dt>
+                <dt data-i18n="entries">Entries</dt>
                 <dd id="profileEntries">-</dd>
               </div>
               <div>
-                <dt>Type</dt>
+                <dt data-i18n="type">Type</dt>
                 <dd id="profileType">-</dd>
               </div>
             </dl>
@@ -117,31 +117,38 @@
             <strong id="imageName">Sample pattern</strong>
             <span id="imageSize">-</span>
           </div>
-          <button id="exportButton" type="button">Save preview PNG</button>
+          <div class="toolbar-actions">
+            <label class="sr-only" for="languageSelect" data-i18n="language">Language</label>
+            <select id="languageSelect" aria-label="Language">
+              <option value="en">English</option>
+              <option value="ko">한국어</option>
+            </select>
+            <button id="exportButton" type="button" data-i18n="savePreviewPng">Save preview PNG</button>
+          </div>
         </div>
 
         <div id="dropZone" class="drop-zone">
           <div id="splitView" class="viewer split-view">
             <canvas id="baseCanvas"></canvas>
             <canvas id="appliedCanvas"></canvas>
-            <button id="splitHandle" class="split-line" type="button" aria-label="Move comparison slider"></button>
-            <span class="label original">Original</span>
-            <span class="label profiled">Edited profile</span>
+            <button id="splitHandle" class="split-line" type="button" aria-label="Move comparison slider" data-i18n-aria-label="moveComparisonSlider"></button>
+            <span class="label original" data-i18n="original">Original</span>
+            <span class="label profiled" data-i18n="editedProfile">Edited profile</span>
           </div>
 
           <div id="sideView" class="viewer side-view hidden">
             <figure>
-              <figcaption>Original</figcaption>
+              <figcaption data-i18n="original">Original</figcaption>
               <canvas id="baseSideCanvas"></canvas>
             </figure>
             <figure>
-              <figcaption>Edited profile</figcaption>
+              <figcaption data-i18n="editedProfile">Edited profile</figcaption>
               <canvas id="appliedSideCanvas"></canvas>
             </figure>
           </div>
 
           <div id="emptyState" class="empty-state hidden">
-            <p>Drop an image here or choose a file.</p>
+            <p data-i18n="dropImage">Drop an image here or choose a file.</p>
           </div>
         </div>
       </section>

@@ -12,6 +12,116 @@ const CURVE_DETAIL_COUNTS = {
   ultra: 49
 };
 const CURVE_CANVAS_PAD = 18;
+const LANGUAGE_STORAGE_KEY = "icc-live-editor-language";
+
+const translations = {
+  en: {
+    tagline: "Preview and tune VCGT curves in real time.",
+    tabCurve: "Curve",
+    tabFiles: "Files",
+    liveCurve: "Live Curve",
+    linear: "Linear",
+    profileReset: "Profile",
+    curveHint: "0% and 100% are fixed to keep black and white points stable.",
+    channel: "Channel",
+    rgbLinked: "RGB linked",
+    red: "Red",
+    green: "Green",
+    blue: "Blue",
+    detail: "Detail",
+    standard: "Standard",
+    fine: "Fine",
+    ultra: "Ultra",
+    view: "View",
+    sliderCompare: "Slider compare",
+    sideBySide: "Side by side",
+    appliedOnly: "Applied only",
+    comparePosition: "Compare position",
+    image: "Image",
+    useSample: "Use sample pattern",
+    pasteHint: "Copy an image, then press Ctrl+V on this page.",
+    profile: "Profile",
+    loadingProfiles: "Loading ICC profiles from this folder...",
+    saveIcc: "Save ICC",
+    savedProfileName: "Saved profile name",
+    iccLiveCustom: "ICC Live Custom",
+    saveIccHint: "Saved ICC files will include the Untitled0828 signature.",
+    saveEditedIcc: "Save edited ICC",
+    noProfile: "No profile",
+    loadedSignature: "Loaded signature",
+    channels: "Channels",
+    entries: "Entries",
+    type: "Type",
+    language: "Language",
+    savePreviewPng: "Save preview PNG",
+    moveComparisonSlider: "Move comparison slider",
+    original: "Original",
+    editedProfile: "Edited profile",
+    dropImage: "Drop an image here or choose a file.",
+    samplePattern: "Sample pattern",
+    pastedImage: "Pasted image",
+    pastedImageLoaded: "Pasted image loaded.",
+    noSignature: "No signature",
+    noProfilesFound: "No ICC profiles found in this folder.",
+    profilesFound: (count) => `${count} ICC profiles found in this folder.`,
+    iccWarning: (warnings) => `Saved ICC curve data, but could not update ${warnings.join(" and ")} in this profile.`,
+    warningProfileName: "profile name metadata",
+    warningSignature: "signature metadata"
+  },
+  ko: {
+    tagline: "VCGT 커브를 실시간으로 미리 보고 조정합니다.",
+    tabCurve: "커브",
+    tabFiles: "파일",
+    liveCurve: "실시간 커브",
+    linear: "선형",
+    profileReset: "프로필",
+    curveHint: "검은점과 흰점을 안정적으로 유지하기 위해 0%와 100%는 고정됩니다.",
+    channel: "채널",
+    rgbLinked: "RGB 연결",
+    red: "빨강",
+    green: "초록",
+    blue: "파랑",
+    detail: "정밀도",
+    standard: "표준",
+    fine: "세밀",
+    ultra: "초세밀",
+    view: "보기",
+    sliderCompare: "슬라이더 비교",
+    sideBySide: "나란히 보기",
+    appliedOnly: "적용본만",
+    comparePosition: "비교 위치",
+    image: "이미지",
+    useSample: "샘플 패턴 사용",
+    pasteHint: "이미지를 복사한 뒤 이 페이지에서 Ctrl+V를 누르세요.",
+    profile: "프로필",
+    loadingProfiles: "이 폴더의 ICC 프로필을 불러오는 중...",
+    saveIcc: "ICC 저장",
+    savedProfileName: "저장할 프로필 이름",
+    iccLiveCustom: "ICC Live Custom",
+    saveIccHint: "저장되는 ICC 파일에는 Untitled0828 서명이 포함됩니다.",
+    saveEditedIcc: "수정한 ICC 저장",
+    noProfile: "프로필 없음",
+    loadedSignature: "불러온 서명",
+    channels: "채널",
+    entries: "항목 수",
+    type: "유형",
+    language: "언어",
+    savePreviewPng: "미리보기 PNG 저장",
+    moveComparisonSlider: "비교 슬라이더 이동",
+    original: "원본",
+    editedProfile: "수정된 프로필",
+    dropImage: "이미지를 여기에 놓거나 파일을 선택하세요.",
+    samplePattern: "샘플 패턴",
+    pastedImage: "붙여넣은 이미지",
+    pastedImageLoaded: "붙여넣은 이미지를 불러왔습니다.",
+    noSignature: "서명 없음",
+    noProfilesFound: "이 폴더에서 ICC 프로필을 찾지 못했습니다.",
+    profilesFound: (count) => `이 폴더에서 ICC 프로필 ${count}개를 찾았습니다.`,
+    iccWarning: (warnings) => `ICC 커브 데이터는 저장했지만 이 프로필의 ${warnings.join(" 및 ")}은 업데이트하지 못했습니다.`,
+    warningProfileName: "프로필 이름 메타데이터",
+    warningSignature: "서명 메타데이터"
+  }
+};
 
 const state = {
   profile: null,
@@ -20,6 +130,10 @@ const state = {
   editPointsByChannel: [],
   curveInputs: STANDARD_CURVE_INPUTS,
   activeCurveChannel: "all",
+  language: "en",
+  imageLabelKey: "samplePattern",
+  profileCount: null,
+  pasteStatusKey: "pasteHint",
   renderFrame: 0,
   pendingTableRebuild: false,
   curveDragIndex: null,
@@ -37,6 +151,7 @@ const els = {
   splitRange: document.querySelector("#splitRange"),
   exportButton: document.querySelector("#exportButton"),
   exportIccButton: document.querySelector("#exportIccButton"),
+  languageSelect: document.querySelector("#languageSelect"),
   resetCurveButton: document.querySelector("#resetCurveButton"),
   linearCurveButton: document.querySelector("#linearCurveButton"),
   curveChannel: document.querySelector("#curveChannel"),
@@ -64,6 +179,41 @@ const els = {
   tabButtons: document.querySelectorAll(".tab-button"),
   tabPanels: document.querySelectorAll(".tab-panel")
 };
+
+function t(key, ...args) {
+  const value = translations[state.language]?.[key] ?? translations.en[key] ?? key;
+  return typeof value === "function" ? value(...args) : value;
+}
+
+function setLanguage(language) {
+  state.language = translations[language] ? language : "en";
+  if (els.languageSelect) els.languageSelect.value = state.language;
+  localStorage.setItem(LANGUAGE_STORAGE_KEY, state.language);
+  applyLanguage();
+}
+
+function updateProfileStatusText() {
+  if (state.profileCount === null) return;
+  els.profileStatus.textContent = state.profileCount
+    ? t("profilesFound", state.profileCount)
+    : t("noProfilesFound");
+}
+
+function applyLanguage() {
+  document.querySelectorAll("[data-i18n]").forEach((node) => {
+    node.textContent = t(node.dataset.i18n);
+  });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => {
+    node.setAttribute("placeholder", t(node.dataset.i18nPlaceholder));
+  });
+  document.querySelectorAll("[data-i18n-aria-label]").forEach((node) => {
+    node.setAttribute("aria-label", t(node.dataset.i18nAriaLabel));
+  });
+  if (state.imageLabelKey) els.imageName.textContent = t(state.imageLabelKey);
+  if (state.profile && !state.profile.signature) els.profileSignature.textContent = t("noSignature");
+  updateProfileStatusText();
+  if (state.pasteStatusKey) els.pasteStatus.textContent = t(state.pasteStatusKey);
+}
 
 function readAscii(bytes, offset, length) {
   return String.fromCharCode(...bytes.slice(offset, offset + length));
@@ -413,12 +563,21 @@ async function loadImageFile(file) {
   }
 }
 
-async function loadImageBlob(blob, name) {
+async function loadImageBlob(blob, name, labelKey = null) {
   const file = blob instanceof File ? blob : new File([blob], name, { type: blob.type || "image/png" });
-  await loadImageFile(file);
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.decoding = "async";
+    img.src = url;
+    await img.decode();
+    setImageFromElement(img, name, labelKey);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
-function setImageFromElement(img, name) {
+function setImageFromElement(img, name, labelKey = null) {
   const maxSide = 2200;
   let width = img.naturalWidth || img.width;
   let height = img.naturalHeight || img.height;
@@ -432,7 +591,8 @@ function setImageFromElement(img, name) {
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   ctx.drawImage(img, 0, 0, width, height);
   state.baseImageData = ctx.getImageData(0, 0, width, height);
-  els.imageName.textContent = name;
+  state.imageLabelKey = labelKey;
+  els.imageName.textContent = labelKey ? t(labelKey) : name;
   els.imageSize.textContent = `${width} x ${height}`;
   els.emptyState.classList.add("hidden");
   renderAll();
@@ -472,14 +632,15 @@ function makeSamplePattern() {
   ctx.fillText("dark area", 190, 245);
 
   const img = new Image();
-  img.onload = () => setImageFromElement(img, "Sample pattern");
+  img.onload = () => setImageFromElement(img, t("samplePattern"), "samplePattern");
   img.src = canvas.toDataURL("image/png");
 }
 
 async function setProfile(profile) {
   state.profile = profile;
   els.profileName.textContent = profile.name;
-  els.profileSignature.textContent = profile.signature || "No signature";
+  els.profileName.removeAttribute("data-i18n");
+  els.profileSignature.textContent = profile.signature || t("noSignature");
   els.saveProfileName.value = trimProfileName(profile.name || "ICC Live Custom");
   els.profileChannels.textContent = String(profile.channels);
   els.profileEntries.textContent = String(profile.entries);
@@ -597,8 +758,9 @@ function sortProfileNames(a, b) {
 async function loadBuiltInProfiles() {
   els.profileSelect.innerHTML = "";
   const profiles = await discoverProfiles();
+  state.profileCount = profiles.length;
   if (!profiles.length) {
-    els.profileStatus.textContent = "No ICC profiles found in this folder.";
+    updateProfileStatusText();
     return;
   }
   for (const name of profiles) {
@@ -607,7 +769,7 @@ async function loadBuiltInProfiles() {
     option.textContent = name;
     els.profileSelect.append(option);
   }
-  els.profileStatus.textContent = `${profiles.length} ICC profiles found in this folder.`;
+  updateProfileStatusText();
 
   els.profileSelect.addEventListener("change", async () => {
     const name = els.profileSelect.value;
@@ -925,8 +1087,8 @@ function exportEditedIcc() {
   }
   const warnings = [];
   const profileName = trimProfileName(els.saveProfileName.value);
-  if (!writeIccText(bytes, state.profile.descTag, profileName)) warnings.push("profile name metadata");
-  if (!writeIccText(bytes, state.profile.cprtTag, SIGNATURE_TEXT)) warnings.push("signature metadata");
+  if (!writeIccText(bytes, state.profile.descTag, profileName)) warnings.push(t("warningProfileName"));
+  if (!writeIccText(bytes, state.profile.cprtTag, SIGNATURE_TEXT)) warnings.push(t("warningSignature"));
   const blob = new Blob([bytes], { type: "application/vnd.iccprofile" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -935,7 +1097,7 @@ function exportEditedIcc() {
   a.click();
   URL.revokeObjectURL(url);
   if (warnings.length) {
-    alert(`Saved ICC curve data, but could not update ${warnings.join(" and ")} in this profile.`);
+    alert(t("iccWarning", warnings));
   }
 }
 
@@ -963,6 +1125,7 @@ els.splitRange.addEventListener("input", () => {
 });
 els.exportButton.addEventListener("click", exportApplied);
 els.exportIccButton.addEventListener("click", exportEditedIcc);
+els.languageSelect.addEventListener("change", () => setLanguage(els.languageSelect.value));
 els.resetCurveButton.addEventListener("click", resetCurveFromProfile);
 els.linearCurveButton.addEventListener("click", resetCurveToLinear);
 els.curveCanvas.addEventListener("pointerdown", startCurveDrag);
@@ -1023,9 +1186,11 @@ document.addEventListener("paste", async (event) => {
   const blob = imageItem.getAsFile();
   if (!blob) return;
   try {
-    els.pasteStatus.textContent = "Pasted image loaded.";
-    await loadImageBlob(blob, "Pasted image");
+    state.pasteStatusKey = "pastedImageLoaded";
+    els.pasteStatus.textContent = t("pastedImageLoaded");
+    await loadImageBlob(blob, t("pastedImage"), "pastedImage");
   } catch (err) {
+    state.pasteStatusKey = null;
     els.pasteStatus.textContent = err.message;
   }
 });
@@ -1049,6 +1214,7 @@ els.dropZone.addEventListener("drop", (event) => {
   if (file) loadImageFile(file).catch((err) => alert(err.message));
 });
 
+setLanguage(localStorage.getItem(LANGUAGE_STORAGE_KEY) || "en");
 loadBuiltInProfiles().catch((err) => alert(err.message));
 makeSamplePattern();
 updateSplit();
