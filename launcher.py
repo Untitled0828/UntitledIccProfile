@@ -16,6 +16,14 @@ APP_NAME = "ICC Live Editor"
 APP_SIGNATURE = "Untitled0828"
 DEFAULT_PROFILE = "Untitled.icc"
 PORT_START = 8766
+ALLOWED_RESOURCE_FILES = {
+    "index.html",
+    "app.js",
+    "icc-core.js",
+    "styles.css",
+    "profiles.json",
+}
+ALLOWED_PROFILE_SUFFIXES = {".icc", ".icm"}
 
 
 def is_relative_to(path: Path, root: Path) -> bool:
@@ -51,6 +59,10 @@ def choose_port() -> int:
     raise RuntimeError("No free local port found.")
 
 
+def is_allowed_resource(path: Path) -> bool:
+    return path.name in ALLOWED_RESOURCE_FILES or path.suffix.lower() in ALLOWED_PROFILE_SUFFIXES
+
+
 class AppHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, resource_root: Path, external_root: Path, **kwargs):
         self.resource_root = resource_root
@@ -62,6 +74,7 @@ class AppHandler(SimpleHTTPRequestHandler):
 
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
         super().end_headers()
 
     def do_GET(self):
@@ -81,15 +94,22 @@ class AppHandler(SimpleHTTPRequestHandler):
         resource_candidate = (resource_root / clean_path).resolve()
         fallback = resource_root / "__missing__"
 
+        if clean_path == Path("."):
+            return str(resource_root)
+
         if (
             is_relative_to(external_candidate, external_root)
             and external_candidate.is_file()
-            and external_candidate.suffix.lower() in {".icc", ".icm"}
+            and external_candidate.suffix.lower() in ALLOWED_PROFILE_SUFFIXES
         ):
             return str(external_candidate)
-        if is_relative_to(resource_candidate, resource_root) and resource_candidate.is_file():
+        if (
+            is_relative_to(resource_candidate, resource_root)
+            and resource_candidate.is_file()
+            and is_allowed_resource(resource_candidate)
+        ):
             return str(resource_candidate)
-        if is_relative_to(resource_candidate, resource_root):
+        if is_relative_to(resource_candidate, resource_root) and resource_candidate.is_dir():
             return str(resource_candidate)
         return str(fallback)
 
@@ -99,7 +119,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             if not root.exists():
                 continue
             for path in root.iterdir():
-                if path.is_file() and path.suffix.lower() in {".icc", ".icm"}:
+                if path.is_file() and path.suffix.lower() in ALLOWED_PROFILE_SUFFIXES:
                     names.add(path.name)
         profiles = sorted(names, key=lambda name: (name != DEFAULT_PROFILE, name.lower()))
         payload = json.dumps(profiles, ensure_ascii=False, indent=2).encode("utf-8")

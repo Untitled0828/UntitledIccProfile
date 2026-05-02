@@ -1,18 +1,27 @@
+import {
+  DEFAULT_PROFILE,
+  STANDARD_CURVE_INPUTS,
+  parseIcc,
+  sampleProfile,
+  applyProfile,
+  sampleEditCurve,
+  cloneCurvePoints,
+  makeCurveInputs,
+  resampleCurvePoints,
+  trimProfileName,
+  safeFileBase,
+  writeProfileBytes
+} from "./icc-core.js";
+
 const builtInProfiles = [
   "Untitled.icc"
 ];
 
-const APP_SIGNATURE = "Untitled0828";
-const SIGNATURE_TEXT = APP_SIGNATURE;
-const DEFAULT_PROFILE = "Untitled.icc";
-const STANDARD_CURVE_INPUTS = [0, 0.02, 0.05, 0.10, 0.20, 0.35, 0.50, 0.65, 0.80, 0.90, 0.95, 1.0];
-const CURVE_DETAIL_COUNTS = {
-  standard: STANDARD_CURVE_INPUTS.length,
-  fine: 25,
-  ultra: 49
-};
 const CURVE_CANVAS_PAD = 18;
 const LANGUAGE_STORAGE_KEY = "icc-live-editor-language";
+const MAX_IMAGE_FILE_BYTES = 40 * 1024 * 1024;
+const MAX_IMAGE_PIXELS = 40_000_000;
+const MAX_IMAGE_DIMENSION = 12_000;
 
 const translations = {
   en: {
@@ -215,209 +224,6 @@ function applyLanguage() {
   if (state.pasteStatusKey) els.pasteStatus.textContent = t(state.pasteStatusKey);
 }
 
-function readAscii(bytes, offset, length) {
-  return String.fromCharCode(...bytes.slice(offset, offset + length));
-}
-
-function u16(bytes, offset) {
-  return (bytes[offset] << 8) | bytes[offset + 1];
-}
-
-function u32(bytes, offset) {
-  return ((bytes[offset] * 0x1000000) + (bytes[offset + 1] << 16) + (bytes[offset + 2] << 8) + bytes[offset + 3]) >>> 0;
-}
-
-function writeU32(bytes, offset, value) {
-  bytes[offset] = (value >>> 24) & 255;
-  bytes[offset + 1] = (value >>> 16) & 255;
-  bytes[offset + 2] = (value >>> 8) & 255;
-  bytes[offset + 3] = value & 255;
-}
-
-function decodeAsciiText(bytes) {
-  return new TextDecoder("ascii").decode(bytes).replace(/\0+$/g, "").trim();
-}
-
-function parseMluc(bytes, offset, size) {
-  const count = u32(bytes, offset + 8);
-  if (!count) return "";
-  const record = offset + 16;
-  const len = u32(bytes, record + 4);
-  const textOffset = u32(bytes, record + 8);
-  const start = offset + textOffset;
-  if (start + len > offset + size) return "";
-  try {
-    return new TextDecoder("utf-16be").decode(bytes.slice(start, start + len)).replace(/\0+$/g, "");
-  } catch {
-    const raw = bytes.slice(start, start + len).filter(Boolean);
-    return new TextDecoder().decode(raw);
-  }
-}
-
-function parseDesc(bytes, offset, size) {
-  if (size < 12) return "";
-  const len = u32(bytes, offset + 8);
-  if (!len || 12 + len > size) return "";
-  return decodeAsciiText(bytes.slice(offset + 12, offset + 12 + len));
-}
-
-function parseText(bytes, offset, size) {
-  if (size <= 8) return "";
-  return decodeAsciiText(bytes.slice(offset + 8, offset + size));
-}
-
-function parseIccText(bytes, offset, size) {
-  const type = readAscii(bytes, offset, 4);
-  if (type === "mluc") return parseMluc(bytes, offset, size);
-  if (type === "desc") return parseDesc(bytes, offset, size);
-  if (type === "text") return parseText(bytes, offset, size);
-  return "";
-}
-
-function parseIcc(buffer, fallbackName) {
-  const bytes = new Uint8Array(buffer);
-  if (bytes.length < 132) throw new Error("ICC file is too small.");
-  const tagCount = u32(bytes, 128);
-  let vcgt = null;
-  let description = "";
-  let descTag = null;
-  let signature = "";
-  let cprtTag = null;
-
-  for (let i = 0; i < tagCount; i++) {
-    const row = 132 + i * 12;
-    const sig = readAscii(bytes, row, 4);
-    const offset = u32(bytes, row + 4);
-    const size = u32(bytes, row + 8);
-    if (offset + size > bytes.length) continue;
-    if (sig === "desc") {
-      descTag = { offset, size };
-      description = parseIccText(bytes, offset, size) || description;
-    }
-    if (sig === "cprt") {
-      cprtTag = { offset, size };
-      signature = parseIccText(bytes, offset, size) || signature;
-    }
-    if (sig === "vcgt") vcgt = parseVcgt(bytes, offset, size);
-  }
-
-  if (!vcgt) throw new Error("This ICC has no VCGT table.");
-  return {
-    name: description || fallbackName,
-    fileName: fallbackName,
-    sourceBytes: bytes,
-    descTag,
-    cprtTag,
-    signature,
-    ...vcgt
-  };
-}
-
-function parseVcgt(bytes, offset, size) {
-  if (readAscii(bytes, offset, 4) !== "vcgt") throw new Error("Invalid VCGT tag.");
-  const gammaType = u32(bytes, offset + 8);
-  if (gammaType !== 0) throw new Error("Only table VCGT profiles are supported.");
-  const channels = u16(bytes, offset + 12);
-  const entries = u16(bytes, offset + 14);
-  const entrySize = u16(bytes, offset + 16);
-  if (channels < 1 || entries < 2 || entrySize !== 2) throw new Error("Unsupported VCGT format.");
-
-  const tableOffset = offset + 18;
-  const needed = channels * entries * entrySize;
-  if (tableOffset + needed > offset + size) throw new Error("Broken VCGT table.");
-
-  const tables = [];
-  for (let channel = 0; channel < channels; channel++) {
-    const table = new Float32Array(entries);
-    for (let i = 0; i < entries; i++) {
-      const pos = tableOffset + (channel * entries + i) * 2;
-      table[i] = u16(bytes, pos) / 65535;
-    }
-    tables.push(table);
-  }
-  return {
-    type: "vcgt table",
-    channels,
-    entries,
-    entrySize,
-    vcgtOffset: offset,
-    vcgtSize: size,
-    tables,
-    originalTables: tables.map((table) => new Float32Array(table))
-  };
-}
-
-function sampleProfile(profile, channel, input01) {
-  const table = profile.tables[Math.min(channel, profile.tables.length - 1)];
-  const pos = input01 * (profile.entries - 1);
-  const lo = Math.floor(pos);
-  const hi = Math.min(profile.entries - 1, lo + 1);
-  const t = pos - lo;
-  return table[lo] + (table[hi] - table[lo]) * t;
-}
-
-function sampleTable(profile, channel, value) {
-  if (!profile) return value;
-  return Math.round(sampleProfile(profile, channel, value / 255) * 255);
-}
-
-function buildProfileLuts(profile) {
-  profile.luts = [0, 1, 2].map((channel) => {
-    const lut = new Uint8ClampedArray(256);
-    for (let value = 0; value < 256; value++) {
-      lut[value] = sampleTable(profile, channel, value);
-    }
-    return lut;
-  });
-}
-
-function applyProfile(imageData, profile) {
-  if (!profile.luts) buildProfileLuts(profile);
-  const [red, green, blue] = profile.luts;
-  const output = new ImageData(new Uint8ClampedArray(imageData.data), imageData.width, imageData.height);
-  const data = output.data;
-  for (let i = 0; i < data.length; i += 4) {
-    data[i] = red[data[i]];
-    data[i + 1] = green[data[i + 1]];
-    data[i + 2] = blue[data[i + 2]];
-  }
-  return output;
-}
-
-function smoothStep(t) {
-  return t * t * (3 - 2 * t);
-}
-
-function sampleEditCurve(points, x) {
-  if (!points.length) return x;
-  for (let i = 0; i < points.length - 1; i++) {
-    const a = points[i];
-    const b = points[i + 1];
-    if (x <= b.x) {
-      const t = smoothStep((x - a.x) / (b.x - a.x));
-      return a.y + (b.y - a.y) * t;
-    }
-  }
-  return 1;
-}
-
-function cloneCurvePoints(points) {
-  return points.map((point) => ({ x: point.x, y: point.y }));
-}
-
-function makeCurveInputs(detail) {
-  if (detail === "standard") return [...STANDARD_CURVE_INPUTS];
-  const count = CURVE_DETAIL_COUNTS[detail] || CURVE_DETAIL_COUNTS.standard;
-  return Array.from({ length: count }, (_, index) => index / (count - 1));
-}
-
-function resampleCurvePoints(points, inputs) {
-  return inputs.map((x, index) => ({
-    x,
-    y: index === 0 ? 0 : index === inputs.length - 1 ? 1 : sampleEditCurve(points, x)
-  }));
-}
-
 function getChannelPoints(channel) {
   if (!state.editPointsByChannel.length) return [];
   return state.editPointsByChannel[Math.min(channel, state.editPointsByChannel.length - 1)];
@@ -495,13 +301,21 @@ function drawImageData(canvas, imageData) {
   canvas.getContext("2d").putImageData(imageData, 0, 0);
 }
 
+function drawVisibleCanvases(mode = els.viewMode.value) {
+  if (!state.baseImageData || !state.appliedImageData) return;
+  if (mode === "side") {
+    drawImageData(els.baseSideCanvas, state.baseImageData);
+    drawImageData(els.appliedSideCanvas, state.appliedImageData);
+    return;
+  }
+  drawImageData(els.baseCanvas, state.baseImageData);
+  drawImageData(els.appliedCanvas, state.appliedImageData);
+}
+
 function renderAll() {
   if (!state.baseImageData) return;
   state.appliedImageData = state.profile ? applyProfile(state.baseImageData, state.profile) : state.baseImageData;
-  drawImageData(els.baseCanvas, state.baseImageData);
-  drawImageData(els.appliedCanvas, state.appliedImageData);
-  drawImageData(els.baseSideCanvas, state.baseImageData);
-  drawImageData(els.appliedSideCanvas, state.appliedImageData);
+  drawVisibleCanvases();
   if (state.profile) drawCurveCanvas();
   updateViewMode();
 }
@@ -552,6 +366,7 @@ function updateViewMode() {
   els.splitRange.closest(".control-group").classList.toggle("hidden", mode !== "split");
   els.baseCanvas.classList.toggle("hidden", mode === "applied");
   els.splitHandle.classList.toggle("hidden", mode !== "split");
+  drawVisibleCanvases(mode);
   if (mode === "applied") {
     els.appliedCanvas.style.clipPath = "none";
   } else {
@@ -559,52 +374,86 @@ function updateViewMode() {
   }
 }
 
-async function loadImageFile(file) {
-  const url = URL.createObjectURL(file);
-  try {
-    const img = new Image();
-    img.decoding = "async";
-    img.src = url;
-    await img.decode();
-    setImageFromElement(img, file.name);
-  } finally {
-    URL.revokeObjectURL(url);
+function validateImageBlob(blob) {
+  if (!blob) throw new Error("No image file was provided.");
+  if (blob.size > MAX_IMAGE_FILE_BYTES) {
+    throw new Error(`Image files must be smaller than ${Math.round(MAX_IMAGE_FILE_BYTES / (1024 * 1024))} MB.`);
   }
 }
 
-async function loadImageBlob(blob, name, labelKey = null) {
-  const file = blob instanceof File ? blob : new File([blob], name, { type: blob.type || "image/png" });
-  const url = URL.createObjectURL(file);
-  try {
-    const img = new Image();
-    img.decoding = "async";
-    img.src = url;
-    await img.decode();
-    setImageFromElement(img, name, labelKey);
-  } finally {
-    URL.revokeObjectURL(url);
+function normalizeImageDimensions(width, height) {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width < 1 || height < 1) {
+    throw new Error("Could not read this image.");
+  }
+  if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION || width * height > MAX_IMAGE_PIXELS) {
+    throw new Error(`Images must be ${MAX_IMAGE_DIMENSION}px or smaller per side and under ${MAX_IMAGE_PIXELS.toLocaleString()} pixels.`);
   }
 }
 
-function setImageFromElement(img, name, labelKey = null) {
+function setImageFromDrawable(source, name, labelKey = null) {
+  const naturalWidth = source.naturalWidth ?? source.width;
+  const naturalHeight = source.naturalHeight ?? source.height;
+  normalizeImageDimensions(naturalWidth, naturalHeight);
+
   const maxSide = 2200;
-  let width = img.naturalWidth || img.width;
-  let height = img.naturalHeight || img.height;
-  const scale = Math.min(1, maxSide / Math.max(width, height));
-  width = Math.round(width * scale);
-  height = Math.round(height * scale);
+  const scale = Math.min(1, maxSide / Math.max(naturalWidth, naturalHeight));
+  const width = Math.max(1, Math.round(naturalWidth * scale));
+  const height = Math.max(1, Math.round(naturalHeight * scale));
 
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  ctx.drawImage(img, 0, 0, width, height);
+  ctx.drawImage(source, 0, 0, width, height);
   state.baseImageData = ctx.getImageData(0, 0, width, height);
   state.imageLabelKey = labelKey;
   els.imageName.textContent = labelKey ? t(labelKey) : name;
   els.imageSize.textContent = `${width} x ${height}`;
   els.emptyState.classList.add("hidden");
   renderAll();
+}
+
+async function decodeImageBlob(blob) {
+  validateImageBlob(blob);
+  if ("createImageBitmap" in window) {
+    const bitmap = await createImageBitmap(blob);
+    try {
+      return { source: bitmap, close: () => bitmap.close() };
+    } catch (err) {
+      bitmap.close();
+      throw err;
+    }
+  }
+
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = new Image();
+    img.decoding = "async";
+    img.src = url;
+    await img.decode();
+    return { source: img, close: null };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function loadImageFile(file) {
+  const decoded = await decodeImageBlob(file);
+  try {
+    setImageFromDrawable(decoded.source, file.name);
+  } finally {
+    decoded.close?.();
+  }
+}
+
+async function loadImageBlob(blob, name, labelKey = null) {
+  const file = blob instanceof File ? blob : new File([blob], name, { type: blob.type || "image/png" });
+  const decoded = await decodeImageBlob(file);
+  try {
+    setImageFromDrawable(decoded.source, name, labelKey);
+  } finally {
+    decoded.close?.();
+  }
 }
 
 function makeSamplePattern() {
@@ -641,7 +490,7 @@ function makeSamplePattern() {
   ctx.fillText("dark area", 190, 245);
 
   const img = new Image();
-  img.onload = () => setImageFromElement(img, t("samplePattern"), "samplePattern");
+  img.onload = () => setImageFromDrawable(img, t("samplePattern"), "samplePattern");
   img.src = canvas.toDataURL("image/png");
 }
 
@@ -1016,88 +865,11 @@ function exportApplied() {
   a.click();
 }
 
-function encodeUtf16be(text) {
-  const encoded = new Uint8Array(text.length * 2);
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i);
-    encoded[i * 2] = (code >>> 8) & 255;
-    encoded[i * 2 + 1] = code & 255;
-  }
-  return encoded;
-}
-
-function trimProfileName(name) {
-  return String(name || "ICC Live Custom").trim().slice(0, 24) || "ICC Live Custom";
-}
-
-function safeFileBase(name) {
-  return String(name || "").replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_");
-}
-
-function encodeAscii(text) {
-  return new TextEncoder().encode(String(text).replace(/[^\x20-\x7e]/g, "_"));
-}
-
-function writeMlucText(bytes, tag, text) {
-  const record = tag.offset + 16;
-  const currentOffset = u32(bytes, record + 8);
-  const textStart = tag.offset + currentOffset;
-  const maxLength = tag.offset + tag.size - textStart;
-  const encoded = encodeUtf16be(text);
-  if (encoded.length > maxLength) return false;
-  writeU32(bytes, record + 4, encoded.length);
-  bytes.fill(0, textStart, textStart + maxLength);
-  bytes.set(encoded, textStart);
-  return true;
-}
-
-function writeDescText(bytes, tag, text) {
-  const maxLength = tag.size - 12;
-  const encoded = encodeAscii(text);
-  const lengthWithNull = encoded.length + 1;
-  if (lengthWithNull > maxLength) return false;
-  writeU32(bytes, tag.offset + 8, lengthWithNull);
-  bytes.fill(0, tag.offset + 12, tag.offset + tag.size);
-  bytes.set(encoded, tag.offset + 12);
-  return true;
-}
-
-function writeTextText(bytes, tag, text) {
-  const maxLength = tag.size - 8;
-  const encoded = encodeAscii(text);
-  if (encoded.length > maxLength) return false;
-  bytes.fill(0, tag.offset + 8, tag.offset + tag.size);
-  bytes.set(encoded, tag.offset + 8);
-  return true;
-}
-
-function writeIccText(bytes, tag, text) {
-  if (!tag) return false;
-  const type = readAscii(bytes, tag.offset, 4);
-  if (type === "mluc") return writeMlucText(bytes, tag, text);
-  if (type === "desc") return writeDescText(bytes, tag, text);
-  if (type === "text") return writeTextText(bytes, tag, text);
-  return false;
-}
-
 function exportEditedIcc() {
   flushPendingRender();
   if (!state.profile) return;
-  const bytes = new Uint8Array(state.profile.sourceBytes);
-  const tableOffset = state.profile.vcgtOffset + 18;
-  for (let channel = 0; channel < state.profile.channels; channel++) {
-    const table = state.profile.tables[channel];
-    for (let i = 0; i < state.profile.entries; i++) {
-      const v = Math.max(0, Math.min(65535, Math.round(table[i] * 65535)));
-      const pos = tableOffset + (channel * state.profile.entries + i) * 2;
-      bytes[pos] = (v >>> 8) & 255;
-      bytes[pos + 1] = v & 255;
-    }
-  }
-  const warnings = [];
   const profileName = trimProfileName(els.saveProfileName.value);
-  if (!writeIccText(bytes, state.profile.descTag, profileName)) warnings.push(t("warningProfileName"));
-  if (!writeIccText(bytes, state.profile.cprtTag, SIGNATURE_TEXT)) warnings.push(t("warningSignature"));
+  const { bytes, warnings } = writeProfileBytes(state.profile, { profileName });
   const blob = new Blob([bytes], { type: "application/vnd.iccprofile" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -1106,7 +878,7 @@ function exportEditedIcc() {
   a.click();
   URL.revokeObjectURL(url);
   if (warnings.length) {
-    alert(t("iccWarning", warnings));
+    alert(t("iccWarning", warnings.map((warning) => t(warning === "profileName" ? "warningProfileName" : "warningSignature"))));
   }
 }
 
