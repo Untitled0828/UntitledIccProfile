@@ -30,8 +30,8 @@ jobs:
       - name: Build protected static site
         shell: pwsh
         run: |
-          node .\scripts\build-assets.mjs
-          New-Item -ItemType File -Force -Path build\web\.nojekyll | Out-Null
+          node ./scripts/build-assets.mjs
+          New-Item -ItemType File -Force -Path build/web/.nojekyll | Out-Null
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
