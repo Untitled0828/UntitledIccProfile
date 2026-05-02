@@ -2,14 +2,6 @@
 
 Browser-based ICC VCGT curve editor and preview tool.
 
-## Run locally
-
-Open `index.html` directly in a browser, or run:
-
-```bat
-start_server.bat
-```
-
 ## Deploy to GitHub Pages
 
 1. Create an empty GitHub repository.

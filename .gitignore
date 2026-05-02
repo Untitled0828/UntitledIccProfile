@@ -13,3 +13,7 @@ _site/
 Thumbs.db
 .vscode/
 .idea/
+
+
+# Custom
+*.bat
