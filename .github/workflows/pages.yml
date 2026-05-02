@@ -1,0 +1,57 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare static site
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path _site | Out-Null
+          Copy-Item index.html, styles.css, app.js -Destination _site
+          Get-ChildItem -Path . -File |
+            Where-Object { $_.Extension -in ".icc", ".icm" } |
+            Copy-Item -Destination _site
+          $profiles = Get-ChildItem -Path _site -File |
+            Where-Object { $_.Extension -in ".icc", ".icm" } |
+            Sort-Object Name |
+            ForEach-Object { $_.Name }
+          @($profiles) | ConvertTo-Json | Set-Content -Path _site/profiles.json -Encoding utf8
+          New-Item -ItemType File -Force -Path _site/.nojekyll | Out-Null
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

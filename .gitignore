@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+
+# Local build outputs
+build/
+dist/
+_site/
+*.exe
+*.spec
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
