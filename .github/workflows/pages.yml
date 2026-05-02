@@ -22,25 +22,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Prepare static site
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build protected static site
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path _site | Out-Null
-          Copy-Item index.html, styles.css, app.js, icc-core.js -Destination _site
-          $assetVersion = "${{ github.sha }}"
-          $indexHtml = Get-Content _site/index.html -Raw
-          $indexHtml = $indexHtml.Replace("./styles.css?v=dev", "./styles.css?v=$assetVersion")
-          $indexHtml = $indexHtml.Replace("./app.js?v=dev", "./app.js?v=$assetVersion")
-          Set-Content -Path _site/index.html -Value $indexHtml -Encoding utf8
-          Get-ChildItem -Path . -File |
-            Where-Object { $_.Extension -in ".icc", ".icm" } |
-            Copy-Item -Destination _site
-          $profiles = Get-ChildItem -Path _site -File |
-            Where-Object { $_.Extension -in ".icc", ".icm" } |
-            Sort-Object Name |
-            ForEach-Object { $_.Name }
-          @($profiles) | ConvertTo-Json | Set-Content -Path _site/profiles.json -Encoding utf8
-          New-Item -ItemType File -Force -Path _site/.nojekyll | Out-Null
+          node .\scripts\build-assets.mjs
+          New-Item -ItemType File -Force -Path build\web\.nojekyll | Out-Null
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -48,7 +39,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: build/web
 
   deploy:
     environment:

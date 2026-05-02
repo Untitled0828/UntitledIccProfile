@@ -37,7 +37,9 @@ def is_relative_to(path: Path, root: Path) -> bool:
 def resource_dir() -> Path:
     if hasattr(sys, "_MEIPASS"):
         return Path(sys._MEIPASS)
-    return Path(__file__).resolve().parent
+    root = Path(__file__).resolve().parent
+    built = root / "build" / "web"
+    return built if built.exists() else root
 
 
 def external_dir() -> Path:

@@ -1,4 +1,5 @@
-export const APP_SIGNATURE = "Untitled0828";
+const SIGNATURE_CODE_POINTS = [85, 110, 116, 105, 116, 108, 101, 100, 48, 56, 50, 56];
+export const APP_SIGNATURE = String.fromCharCode(...SIGNATURE_CODE_POINTS);
 export const SIGNATURE_TEXT = APP_SIGNATURE;
 export const DEFAULT_PROFILE = "Untitled.icc";
 export const STANDARD_CURVE_INPUTS = [0, 0.02, 0.05, 0.10, 0.20, 0.35, 0.50, 0.65, 0.80, 0.90, 0.95, 1.0];
