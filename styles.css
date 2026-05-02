@@ -21,6 +21,8 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: "Segoe UI", system-ui, sans-serif;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
 }
 
 button,
@@ -32,7 +34,7 @@ select {
 .app {
   display: grid;
   grid-template-columns: 340px minmax(0, 1fr);
-  min-height: 100vh;
+  min-height: calc(100vh - 38px);
 }
 
 .panel {
@@ -42,7 +44,7 @@ select {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: 100vh;
+  max-height: calc(100vh - 38px);
   overflow: hidden;
 }
 
@@ -225,7 +227,7 @@ input[type="range"] {
 .curve-controls {
   display: grid;
   gap: 8px;
-  max-height: calc(100vh - 440px);
+  max-height: calc(100vh - 478px);
   min-height: 210px;
   overflow: auto;
   padding-right: 4px;
@@ -309,7 +311,7 @@ dd {
 .viewer {
   position: relative;
   width: 100%;
-  min-height: calc(100vh - 94px);
+  min-height: calc(100vh - 132px);
 }
 
 .split-view {
@@ -332,7 +334,7 @@ dd {
 
 canvas {
   max-width: 100%;
-  max-height: calc(100vh - 130px);
+  max-height: calc(100vh - 168px);
   object-fit: contain;
   image-rendering: auto;
 }
@@ -435,12 +437,47 @@ figure canvas {
 }
 
 .empty-state {
-  min-height: calc(100vh - 94px);
+  min-height: calc(100vh - 132px);
   display: grid;
   place-items: center;
   color: var(--muted);
   border: 1px dashed var(--line);
   border-radius: 8px;
+}
+
+.site-bar {
+  min-height: 38px;
+  border-top: 1px solid var(--line);
+  background: #15171b;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 7px 16px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.site-bar span,
+.site-bar a {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.site-bar span:first-child {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.site-bar a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.site-bar a:hover {
+  text-decoration: underline;
 }
 
 .hidden {
@@ -468,5 +505,11 @@ figure canvas {
 
   .toolbar button {
     width: 100%;
+  }
+
+  .site-bar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
   }
 }
