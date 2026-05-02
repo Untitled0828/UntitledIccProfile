@@ -7,13 +7,10 @@ dist/
 _site/
 *.exe
 *.spec
+*.bat
 
 # OS/editor noise
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
-
-
-# Custom
-*.bat
