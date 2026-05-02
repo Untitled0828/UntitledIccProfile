@@ -27,6 +27,11 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path _site | Out-Null
           Copy-Item index.html, styles.css, app.js -Destination _site
+          $assetVersion = "${{ github.sha }}"
+          $indexHtml = Get-Content _site/index.html -Raw
+          $indexHtml = $indexHtml.Replace("./styles.css?v=dev", "./styles.css?v=$assetVersion")
+          $indexHtml = $indexHtml.Replace("./app.js?v=dev", "./app.js?v=$assetVersion")
+          Set-Content -Path _site/index.html -Value $indexHtml -Encoding utf8
           Get-ChildItem -Path . -File |
             Where-Object { $_.Extension -in ".icc", ".icm" } |
             Copy-Item -Destination _site
