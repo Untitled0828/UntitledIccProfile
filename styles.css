@@ -499,6 +499,17 @@ figure canvas {
   text-decoration: none;
 }
 
+.site-bar a.visitor-counter {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.site-bar a.visitor-counter img {
+  display: block;
+  height: 20px;
+}
+
 .site-bar a:hover {
   text-decoration: underline;
 }
@@ -546,5 +557,10 @@ figure canvas {
     align-items: flex-start;
     flex-direction: column;
     gap: 4px;
+  }
+
+  .site-bar span,
+  .site-bar a {
+    white-space: normal;
   }
 }
