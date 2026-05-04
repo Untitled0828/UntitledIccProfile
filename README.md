@@ -7,7 +7,7 @@ Browser-based ICC VCGT curve editor and preview tool.
 - `node ./scripts/build-assets.mjs`
 - Output is written to `build/web`
 - The generated `build/web/app.js` is bundled and lightly obfuscated for distribution
-- `start_server.bat` and GitHub Pages deployment prefer the generated assets
+- `start_server.bat`, `build_exe.bat`, and GitHub Pages deployment prefer the generated assets
 - Source files in the repository remain readable; protection applies to distributed assets, not to the source tree itself
 
 ## Deploy to GitHub Pages
@@ -22,4 +22,4 @@ The build regenerates `profiles/manifest.json` automatically, so newly committed
 
 ## Notes
 
-This repository is configured for the static web app only. GitHub Pages serves the generated site from `build/web`.
+GitHub Pages serves the generated site from `build/web`. Local EXE packaging is also available again through `build_exe.bat`.
