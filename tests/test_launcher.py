@@ -8,7 +8,7 @@ from launcher import AppHandler, is_allowed_resource
 class LauncherTests(unittest.TestCase):
     def test_is_allowed_resource_whitelist(self):
         self.assertTrue(is_allowed_resource(Path("index.html")))
-        self.assertTrue(is_allowed_resource(Path("demo.icc")))
+        self.assertTrue(is_allowed_resource(Path("profiles/demo.icc")))
         self.assertFalse(is_allowed_resource(Path("README.md")))
 
     def test_translate_path_blocks_non_whitelisted_resource_files(self):
@@ -30,14 +30,15 @@ class LauncherTests(unittest.TestCase):
             resources = Path(resource_dir)
             external = Path(external_dir)
             (resources / "index.html").write_text("ok", encoding="utf-8")
-            (external / "profile.icc").write_bytes(b"icc")
+            (external / "profiles").mkdir()
+            (external / "profiles" / "profile.icc").write_bytes(b"icc")
             (external / "secret.txt").write_text("nope", encoding="utf-8")
 
             handler = AppHandler.__new__(AppHandler)
             handler.resource_root = resources
             handler.external_root = external
 
-            self.assertEqual(Path(handler.translate_path("/profile.icc")), external / "profile.icc")
+            self.assertEqual(Path(handler.translate_path("/profiles/profile.icc")), external / "profiles" / "profile.icc")
             self.assertEqual(Path(handler.translate_path("/secret.txt")), resources / "__missing__")
 
 

@@ -8,6 +8,9 @@ _site/
 *.exe
 *.spec
 *.bat
+!desktop/*.spec
+!build_exe.bat
+!start_server.bat
 
 # OS/editor noise
 .DS_Store

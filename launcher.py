@@ -15,13 +15,14 @@ from urllib.parse import unquote
 APP_NAME = "ICC Live Editor"
 APP_SIGNATURE = "Untitled0828"
 DEFAULT_PROFILE = "Untitled.icc"
+PROFILE_DIRNAME = "profiles"
 PORT_START = 8766
 ALLOWED_RESOURCE_FILES = {
     "index.html",
     "app.js",
     "icc-core.js",
     "styles.css",
-    "profiles.json",
+    "favicon.svg",
 }
 ALLOWED_PROFILE_SUFFIXES = {".icc", ".icm"}
 
@@ -62,7 +63,9 @@ def choose_port() -> int:
 
 
 def is_allowed_resource(path: Path) -> bool:
-    return path.name in ALLOWED_RESOURCE_FILES or path.suffix.lower() in ALLOWED_PROFILE_SUFFIXES
+    return path.name in ALLOWED_RESOURCE_FILES or (
+        path.suffix.lower() in ALLOWED_PROFILE_SUFFIXES and PROFILE_DIRNAME in path.parts
+    )
 
 
 class AppHandler(SimpleHTTPRequestHandler):
@@ -80,7 +83,7 @@ class AppHandler(SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_GET(self):
-        if self.path.split("?", 1)[0] == "/profiles.json":
+        if self.path.split("?", 1)[0] == f"/{PROFILE_DIRNAME}/manifest.json":
             self.send_profiles()
             return
         super().do_GET()
@@ -103,6 +106,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             is_relative_to(external_candidate, external_root)
             and external_candidate.is_file()
             and external_candidate.suffix.lower() in ALLOWED_PROFILE_SUFFIXES
+            and PROFILE_DIRNAME in external_candidate.relative_to(external_root).parts
         ):
             return str(external_candidate)
         if (
@@ -118,9 +122,10 @@ class AppHandler(SimpleHTTPRequestHandler):
     def send_profiles(self):
         names = set()
         for root in (self.resource_root, self.external_root):
-            if not root.exists():
+            profile_root = root / PROFILE_DIRNAME
+            if not profile_root.exists():
                 continue
-            for path in root.iterdir():
+            for path in profile_root.iterdir():
                 if path.is_file() and path.suffix.lower() in ALLOWED_PROFILE_SUFFIXES:
                     names.add(path.name)
         profiles = sorted(names, key=lambda name: (name != DEFAULT_PROFILE, name.lower()))

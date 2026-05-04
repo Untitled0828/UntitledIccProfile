@@ -13,6 +13,8 @@ import {
   writeProfileBytes
 } from "./icc-core.js";
 
+const PROFILE_DIR = "./profiles";
+const PROFILE_MANIFEST = `${PROFILE_DIR}/manifest.json`;
 const builtInProfiles = [
   "Untitled.icc"
 ];
@@ -565,7 +567,7 @@ async function discoverProfiles() {
   const found = new Set();
   let hasManifest = false;
   try {
-    const res = await fetch("./profiles.json", { cache: "no-store" });
+    const res = await fetch(PROFILE_MANIFEST, { cache: "no-store" });
     if (res.ok) {
       const payload = await res.json();
       const profiles = Array.isArray(payload) ? payload : [payload];
@@ -575,16 +577,16 @@ async function discoverProfiles() {
       hasManifest = found.size > 0;
     }
   } catch {
-    // start_server.bat writes profiles.json. If the file is missing, try directory listing and fallback names.
+    // If the manifest is missing, try directory listing and fallback names.
   }
   try {
-    const res = await fetch("./", { cache: "no-store" });
+    const res = await fetch(PROFILE_DIR, { cache: "no-store" });
     if (res.ok) {
       const html = await res.text();
       const doc = new DOMParser().parseFromString(html, "text/html");
       for (const link of doc.querySelectorAll("a[href]")) {
         const href = decodeURIComponent(link.getAttribute("href").split("?")[0].split("#")[0]);
-        const name = href.replace(/^\.\//, "");
+        const name = href.replace(/^\.\//, "").replace(/\/$/, "");
         if (/\.(icc|icm)$/i.test(name) && !name.includes("/")) found.add(name);
       }
     }
@@ -598,7 +600,7 @@ async function discoverProfiles() {
   const existing = [];
   for (const name of found) {
     try {
-      const res = await fetch(`./${name}`, { method: "HEAD", cache: "no-store" });
+      const res = await fetch(`${PROFILE_DIR}/${name}`, { method: "HEAD", cache: "no-store" });
       if (res.ok) existing.push(name);
     } catch {
       // Ignore missing or inaccessible profiles.
@@ -632,7 +634,7 @@ async function loadBuiltInProfiles() {
   els.profileSelect.addEventListener("change", async () => {
     const name = els.profileSelect.value;
     try {
-      const res = await fetch(`./${name}`, { cache: "no-store" });
+      const res = await fetch(`${PROFILE_DIR}/${name}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`Could not load ${name}.`);
       await setProfile(parseIcc(await res.arrayBuffer(), name));
     } catch (err) {

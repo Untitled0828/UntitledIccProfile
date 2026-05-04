@@ -16,10 +16,10 @@ Browser-based ICC VCGT curve editor and preview tool.
 2. Push this project to the repository's `main` branch.
 3. In GitHub, open `Settings` -> `Pages`.
 4. Set `Build and deployment` -> `Source` to `GitHub Actions`.
-5. The included workflow builds protected assets and deploys the generated site with all `.icc` / `.icm` profiles.
+5. The included workflow builds protected assets and deploys the generated site with all `.icc` / `.icm` profiles from `profiles/`.
 
-The build regenerates `profiles.json` automatically, so newly committed ICC profiles appear in the profile selector automatically.
+The build regenerates `profiles/manifest.json` automatically, so newly committed ICC profiles appear in the profile selector automatically.
 
 ## Notes
 
-The Windows launcher and executable build files are for local desktop packaging only. GitHub Pages serves the static web app.
+The Windows launcher and packaging files are for local desktop packaging only. GitHub Pages serves the static web app.

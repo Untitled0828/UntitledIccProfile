@@ -1,14 +1,15 @@
-import { mkdir, readFile, writeFile, copyFile, readdir } from "node:fs/promises";
-import { basename, extname, join } from "node:path";
+import { mkdir, readFile, writeFile, copyFile, readdir, rm } from "node:fs/promises";
+import { dirname, extname, join } from "node:path";
 import { createHash } from "node:crypto";
 
 const rootDir = process.cwd();
 const outDir = join(rootDir, "build", "web");
-const assets = ["styles.css"];
+const assets = ["styles.css", "assets/icons/favicon.svg", "assets/icons/favicon.ico"];
 const htmlName = "index.html";
 const sourceAppName = "app.js";
 const sourceCoreName = "icc-core.js";
-const profileManifestName = "profiles.json";
+const profileDirName = "profiles";
+const profileManifestName = "manifest.json";
 
 const identifierMap = new Map([
   ["DEFAULT_PROFILE", "DfP"],
@@ -175,17 +176,20 @@ async function buildJavascript() {
 }
 
 async function copyProfiles() {
-  const files = await readdir(rootDir, { withFileTypes: true });
+  const sourceDir = join(rootDir, profileDirName);
+  const targetDir = join(outDir, profileDirName);
+  await mkdir(targetDir, { recursive: true });
+  const files = await readdir(sourceDir, { withFileTypes: true });
   const profiles = files
     .filter((entry) => entry.isFile() && [".icc", ".icm"].includes(extname(entry.name).toLowerCase()))
     .map((entry) => entry.name)
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
   await Promise.all(
-    profiles.map((name) => copyFile(join(rootDir, name), join(outDir, name)))
+    profiles.map((name) => copyFile(join(sourceDir, name), join(targetDir, name)))
   );
 
-  await writeFile(join(outDir, profileManifestName), `${JSON.stringify(profiles, null, 2)}\n`, "utf8");
+  await writeFile(join(targetDir, profileManifestName), `${JSON.stringify(profiles, null, 2)}\n`, "utf8");
   return profiles;
 }
 
@@ -197,15 +201,18 @@ async function buildHtml(appDigest) {
 }
 
 async function main() {
+  await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
 
   const js = await buildJavascript();
   const appDigest = createHash("sha256").update(js).digest("hex").slice(0, 12);
   await writeFile(join(outDir, "app.js"), js, "utf8");
 
-  await Promise.all(
-    assets.map((name) => copyFile(join(rootDir, name), join(outDir, basename(name))))
-  );
+  await Promise.all(assets.map(async (name) => {
+    const target = join(outDir, name);
+    await mkdir(dirname(target), { recursive: true });
+    await copyFile(join(rootDir, name), target);
+  }));
 
   await buildHtml(appDigest);
   const profiles = await copyProfiles();
