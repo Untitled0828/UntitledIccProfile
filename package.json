@@ -3,7 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:assets": "node ./scripts/build-assets.mjs",
-    "test:js": "node ./tests/icc-core.test.mjs"
+    "build:assets": "node ./scripts/build-assets.mjs"
   }
 }
