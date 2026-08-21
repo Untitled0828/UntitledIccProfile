@@ -36,13 +36,16 @@ function decodeAsciiText(bytes) {
 }
 
 function parseMluc(bytes, offset, size) {
+  if (size < 28) return "";
   const count = u32(bytes, offset + 8);
   if (!count) return "";
+  const recordSize = u32(bytes, offset + 12);
+  if (recordSize < 12 || count > Math.floor((size - 16) / recordSize)) return "";
   const record = offset + 16;
   const len = u32(bytes, record + 4);
   const textOffset = u32(bytes, record + 8);
   const start = offset + textOffset;
-  if (start + len > offset + size) return "";
+  if (len % 2 || textOffset < 16 + count * recordSize || textOffset + len > size) return "";
   try {
     return new TextDecoder("utf-16be").decode(bytes.slice(start, start + len)).replace(/\0+$/g, "");
   } catch {
@@ -72,6 +75,7 @@ function parseIccText(bytes, offset, size) {
 }
 
 function parseVcgt(bytes, offset, size) {
+  if (size < 18) throw new Error("Broken VCGT table.");
   if (readAscii(bytes, offset, 4) !== "vcgt") throw new Error("Invalid VCGT tag.");
   const gammaType = u32(bytes, offset + 8);
   if (gammaType !== 0) throw new Error("Only table VCGT profiles are supported.");
@@ -109,12 +113,39 @@ function parseVcgt(bytes, offset, size) {
 }
 
 export function parseIcc(buffer, fallbackName) {
-  const bytes = new Uint8Array(buffer);
-  if (bytes.length < 132) throw new Error("ICC file is too small.");
+  const input = new Uint8Array(buffer);
+  if (input.length < 132) throw new Error("ICC file is too small.");
+  const declaredSize = u32(input, 0);
+  if (declaredSize < 132 || declaredSize > input.length) throw new Error("Invalid ICC profile size.");
+  if (readAscii(input, 36, 4) !== "acsp") throw new Error("Invalid ICC profile signature.");
+  const bytes = input.slice(0, declaredSize);
 
   const tagCount = u32(bytes, 128);
   if (tagCount > MAX_ICC_TAG_COUNT) throw new Error("ICC tag table is too large.");
-  if (132 + tagCount * 12 > bytes.length) throw new Error("ICC tag table is truncated.");
+  const tagTableEnd = 132 + tagCount * 12;
+  if (tagTableEnd > bytes.length) throw new Error("ICC tag table is truncated.");
+
+  const tags = [];
+  for (let i = 0; i < tagCount; i++) {
+    const row = 132 + i * 12;
+    const tag = {
+      sig: readAscii(bytes, row, 4),
+      offset: u32(bytes, row + 4),
+      size: u32(bytes, row + 8)
+    };
+    if (!tag.size || tag.offset < tagTableEnd || tag.offset % 4 || tag.offset + tag.size > bytes.length) {
+      throw new Error("Invalid ICC tag range.");
+    }
+    tags.push(tag);
+  }
+
+  const ranges = [...tags].sort((a, b) => a.offset - b.offset || a.size - b.size);
+  for (let i = 1; i < ranges.length; i++) {
+    const previous = ranges[i - 1];
+    const current = ranges[i];
+    const shared = current.offset === previous.offset && current.size === previous.size;
+    if (!shared && current.offset < previous.offset + previous.size) throw new Error("Overlapping ICC tags are not supported.");
+  }
 
   let vcgt = null;
   let description = "";
@@ -122,12 +153,7 @@ export function parseIcc(buffer, fallbackName) {
   let signature = "";
   let cprtTag = null;
 
-  for (let i = 0; i < tagCount; i++) {
-    const row = 132 + i * 12;
-    const sig = readAscii(bytes, row, 4);
-    const offset = u32(bytes, row + 4);
-    const size = u32(bytes, row + 8);
-    if (!size || offset + size > bytes.length) continue;
+  for (const { sig, offset, size } of tags) {
     if (sig === "desc") {
       descTag = { offset, size };
       description = parseIccText(bytes, offset, size) || description;
@@ -151,6 +177,26 @@ export function parseIcc(buffer, fallbackName) {
   };
 }
 
+function windowsSafeGammaValue(value, index, entries) {
+  const identity = Math.round(index * 65535 / (entries - 1));
+  return Math.max(
+    0,
+    identity - WINDOWS_GAMMA_MAX_DEVIATION,
+    Math.min(65535, identity + WINDOWS_GAMMA_MAX_DEVIATION, Math.round(value * 65535))
+  );
+}
+
+export function clampWindowsGammaTable(table) {
+  let adjusted = 0;
+  for (let i = 0; i < table.length; i++) {
+    const original = Math.round(table[i] * 65535);
+    const safe = windowsSafeGammaValue(table[i], i, table.length);
+    if (safe !== original) adjusted++;
+    table[i] = safe / 65535;
+  }
+  return adjusted;
+}
+
 export function sampleProfile(profile, channel, input01) {
   const table = profile.tables[Math.min(channel, profile.tables.length - 1)];
   const pos = input01 * (profile.entries - 1);
@@ -158,6 +204,25 @@ export function sampleProfile(profile, channel, input01) {
   const hi = Math.min(profile.entries - 1, lo + 1);
   const t = pos - lo;
   return table[lo] + (table[hi] - table[lo]) * t;
+}
+
+export function rebaseProfileCurves(profile, template) {
+  const tables = Array.from({ length: template.channels }, (_, channel) => {
+    const table = new Float32Array(template.entries);
+    for (let i = 0; i < table.length; i++) {
+      table[i] = sampleProfile(profile, channel, i / (table.length - 1));
+    }
+    return table;
+  });
+  return {
+    ...template,
+    name: profile.name,
+    fileName: profile.fileName,
+    sourceBytes: new Uint8Array(template.sourceBytes),
+    tables,
+    originalTables: tables.map((table) => new Float32Array(table)),
+    luts: null
+  };
 }
 
 function sampleTable(profile, channel, value) {
@@ -292,12 +357,7 @@ export function writeProfileBytes(profile, { profileName, signatureText = SIGNAT
   for (let channel = 0; channel < profile.channels; channel++) {
     const table = profile.tables[channel];
     for (let i = 0; i < profile.entries; i++) {
-      const identity = Math.round(i * 65535 / (profile.entries - 1));
-      const v = Math.max(
-        0,
-        identity - WINDOWS_GAMMA_MAX_DEVIATION,
-        Math.min(65535, identity + WINDOWS_GAMMA_MAX_DEVIATION, Math.round(table[i] * 65535))
-      );
+      const v = windowsSafeGammaValue(table[i], i, profile.entries);
       const pos = tableOffset + (channel * profile.entries + i) * 2;
       bytes[pos] = (v >>> 8) & 255;
       bytes[pos + 1] = v & 255;

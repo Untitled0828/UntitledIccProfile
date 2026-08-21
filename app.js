@@ -1,7 +1,9 @@
 import {
   DEFAULT_PROFILE,
   STANDARD_CURVE_INPUTS,
+  clampWindowsGammaTable,
   parseIcc,
+  rebaseProfileCurves,
   sampleProfile,
   applyProfile,
   sampleEditCurve,
@@ -22,6 +24,7 @@ const builtInProfiles = [
 const CURVE_CANVAS_PAD = 18;
 const LANGUAGE_STORAGE_KEY = "icc-live-editor-language";
 const MAX_IMAGE_FILE_BYTES = 40 * 1024 * 1024;
+const MAX_PROFILE_FILE_BYTES = 64 * 1024 * 1024;
 const MAX_IMAGE_PIXELS = 40_000_000;
 const MAX_IMAGE_DIMENSION = 12_000;
 
@@ -73,6 +76,7 @@ const translations = {
     pastedImage: "Pasted image",
     pastedImageLoaded: "Pasted image loaded.",
     noSignature: "No signature",
+    windowsLutAdjusted: (count) => `${count} LUT values were limited to the Windows-safe range. The preview now matches the saved ICC.`,
     noProfilesFound: "No ICC profiles found in this folder.",
     profilesFound: (count) => `${count} ICC profiles found in this folder.`,
     iccWarning: (warnings) => `Saved ICC curve data, but could not update ${warnings.join(" and ")} in this profile.`,
@@ -126,6 +130,7 @@ const translations = {
     pastedImage: "붙여넣은 이미지",
     pastedImageLoaded: "붙여넣은 이미지를 불러왔습니다.",
     noSignature: "서명 없음",
+    windowsLutAdjusted: (count) => `Windows 안전 범위에 맞게 LUT 값 ${count}개를 제한했습니다. 미리보기와 저장 결과가 동일합니다.`,
     noProfilesFound: "이 폴더에서 ICC 프로필을 찾지 못했습니다.",
     profilesFound: (count) => `이 폴더에서 ICC 프로필 ${count}개를 찾았습니다.`,
     iccWarning: (warnings) => `ICC 커브 데이터는 저장했지만 이 프로필의 ${warnings.join(" 및 ")}은 업데이트하지 못했습니다.`,
@@ -292,6 +297,7 @@ function rebuildProfileTables() {
       table[i] = Math.max(0, Math.min(1, y));
       previous = table[i];
     }
+    clampWindowsGammaTable(table);
     state.profile.tables[channel] = table;
   }
   state.profile.luts = null;
@@ -497,6 +503,8 @@ function makeSamplePattern() {
 }
 
 async function setProfile(profile) {
+  const adjusted = profile.tables.reduce((count, table) => count + clampWindowsGammaTable(table), 0);
+  profile.originalTables = profile.tables.map((table) => new Float32Array(table));
   state.profile = profile;
   els.profileName.textContent = profile.name;
   els.profileName.removeAttribute("data-i18n");
@@ -506,6 +514,7 @@ async function setProfile(profile) {
   els.profileEntries.textContent = String(profile.entries);
   els.profileType.textContent = profile.type;
   resetCurveFromProfile();
+  if (adjusted) alert(t("windowsLutAdjusted", adjusted));
 }
 
 function updateCurveChannelOptions() {
@@ -559,8 +568,14 @@ function updateCurveDetail() {
 }
 
 async function loadProfileFile(file) {
-  const profile = parseIcc(await file.arrayBuffer(), file.name);
-  await setProfile(profile);
+  if (file.size > MAX_PROFILE_FILE_BYTES) {
+    throw new Error(`ICC files must be smaller than ${Math.round(MAX_PROFILE_FILE_BYTES / (1024 * 1024))} MB.`);
+  }
+  const imported = parseIcc(await file.arrayBuffer(), file.name);
+  const res = await fetch(`${PROFILE_DIR}/${DEFAULT_PROFILE}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Could not load the safe ICC template ${DEFAULT_PROFILE}.`);
+  const template = parseIcc(await res.arrayBuffer(), DEFAULT_PROFILE);
+  await setProfile(rebaseProfileCurves(imported, template));
 }
 
 async function discoverProfiles() {

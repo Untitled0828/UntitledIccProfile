@@ -14,7 +14,9 @@ const profileManifestName = "manifest.json";
 const identifierMap = new Map([
   ["DEFAULT_PROFILE", "DfP"],
   ["STANDARD_CURVE_INPUTS", "ScI"],
+  ["clampWindowsGammaTable", "cW"],
   ["parseIcc", "pI"],
+  ["rebaseProfileCurves", "rP"],
   ["sampleProfile", "sP"],
   ["applyProfile", "aP"],
   ["sampleEditCurve", "sE"],
@@ -42,6 +44,7 @@ const identifierMap = new Map([
   ["CURVE_CANVAS_PAD", "Cp"],
   ["LANGUAGE_STORAGE_KEY", "LsK"],
   ["MAX_IMAGE_FILE_BYTES", "MfB"],
+  ["MAX_PROFILE_FILE_BYTES", "MfP"],
   ["MAX_IMAGE_PIXELS", "MpX"],
   ["MAX_IMAGE_DIMENSION", "MdX"],
   ["translations", "Tr"],
