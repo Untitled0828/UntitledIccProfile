@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:assets": "node ./scripts/build-assets.mjs"
+    "build:assets": "node ./scripts/build-assets.mjs",
+    "test": "node --test"
   }
 }

@@ -10,6 +10,7 @@ export const CURVE_DETAIL_COUNTS = {
 };
 
 const MAX_ICC_TAG_COUNT = 4096;
+export const WINDOWS_GAMMA_MAX_DEVIATION = 32768;
 
 function readAscii(bytes, offset, length) {
   return String.fromCharCode(...bytes.slice(offset, offset + length));
@@ -291,7 +292,12 @@ export function writeProfileBytes(profile, { profileName, signatureText = SIGNAT
   for (let channel = 0; channel < profile.channels; channel++) {
     const table = profile.tables[channel];
     for (let i = 0; i < profile.entries; i++) {
-      const v = Math.max(0, Math.min(65535, Math.round(table[i] * 65535)));
+      const identity = Math.round(i * 65535 / (profile.entries - 1));
+      const v = Math.max(
+        0,
+        identity - WINDOWS_GAMMA_MAX_DEVIATION,
+        Math.min(65535, identity + WINDOWS_GAMMA_MAX_DEVIATION, Math.round(table[i] * 65535))
+      );
       const pos = tableOffset + (channel * profile.entries + i) * 2;
       bytes[pos] = (v >>> 8) & 255;
       bytes[pos + 1] = v & 255;
